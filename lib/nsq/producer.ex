@@ -169,8 +169,13 @@ defmodule NSQ.Producer do
 
   @spec random_connection_pid(pro_state) :: pid
   def random_connection_pid(pro_state) do
-    {_child_id, pid} = Enum.random(get_connections(pro_state))
-    pid
+    conns = get_connections(pro_state)
+    case Enum.empty?(conns) do
+      true  -> nil
+      false ->
+        {_child_id, pid} = Enum.random(get_connections(pro_state))
+        pid
+    end
   end
 
 
@@ -252,17 +257,23 @@ defmodule NSQ.Producer do
   # Used to DRY up handle_call({:pub, ...).
   @spec do_pub(binary, binary, pro_state) :: {:reply, {:ok, binary}, pro_state}
   defp do_pub(topic, data, pro_state) do
-    {:ok, resp} = random_connection_pid(pro_state)
-      |> NSQ.Connection.cmd({:pub, topic, data})
-    {:reply, {:ok, resp}, pro_state}
+    case random_connection_pid(pro_state) do
+      nil -> {:reply, {:error, :no_connection}, pro_state}
+      pid ->
+        {:ok, resp} = NSQ.Connection.cmd(pid, {:pub, topic, data})
+        {:reply, {:ok, resp}, pro_state}
+    end
   end
 
 
   # Used to DRY up handle_call({:mpub, ...).
   @spec do_mpub(binary, binary, pro_state) :: {:reply, {:ok, binary}, pro_state}
   defp do_mpub(topic, data, pro_state) do
-    {:ok, resp} = random_connection_pid(pro_state)
-      |> NSQ.Connection.cmd({:mpub, topic, data})
-    {:reply, {:ok, resp}, pro_state}
+    case random_connection_pid(pro_state) do
+      nil -> {:reply, {:error, :no_connection}, pro_state}
+      pid ->
+        {:ok, resp} = NSQ.Connection.cmd(pid, {:pub, topic, data})
+        {:reply, {:ok, resp}, pro_state}
+    end
   end
 end
